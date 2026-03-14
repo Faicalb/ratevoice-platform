@@ -1,0 +1,85 @@
+{
+  "Dashboard": {
+    "title": "RateVoice",
+    "sidebar": {
+      "dashboard": "Tableau de bord",
+      "analytics": "Analytique",
+      "reviews": "Avis vocaux",
+      "bookings": "Réservations",
+      "wallet": "Portefeuille",
+      "customers": "Clients",
+      "messages": "Messages",
+      "advertising": "Publicité",
+      "aiInsights": "Insights IA",
+      "settings": "Paramètres"
+    },
+    "header": {
+      "search": "Rechercher...",
+      "notifications": "Notifications",
+      "profile": "Profil"
+    },
+    "widgets": {
+      "totalReviews": "Total des avis",
+      "customerSatisfaction": "Satisfaction client",
+      "bookings": "Réservations",
+      "revenue": "Revenus"
+    },
+    "aiInsights": {
+      "title": "Insights IA",
+      "example": "Les clients sont généralement satisfaits mais beaucoup mentionnent de longs temps d'attente à l'enregistrement. Envisagez d'améliorer l'efficacité de la réception.",
+      "suggestions": {
+        "speedUpCheckIn": "Accélérer l'enregistrement",
+        "enhanceStaffTraining": "Améliorer la formation du personnel",
+        "offerWelcomeDrinks": "Offrir des boissons de bienvenue"
+      }
+    },
+    "voiceReviews": {
+      "title": "Avis vocaux",
+      "vip": "VIP",
+      "regular": "Habitué",
+      "newGuest": "Nouveau client",
+      "reply": "Répondre"
+    },
+    "globalAnalytics": {
+      "title": "Carte analytique mondiale"
+    }
+  },
+  "Pricing": {
+    "free": {
+      "name": "PLAN GRATUIT",
+      "price": "0 $ / mois",
+      "features": [
+        "Écouter 3 avis vocaux",
+        "Analytique de base",
+        "Accès limité au tableau de bord"
+      ]
+    },
+    "professional": {
+      "name": "PLAN PROFESSIONNEL",
+      "price": "29 $ / mois",
+      "features": [
+        "Avis vocaux illimités",
+        "Répondre aux clients",
+        "Analyse de sentiment par IA",
+        "Gestion des réservations",
+        "Exportation de rapports"
+      ]
+    },
+    "enterprise": {
+      "name": "PLAN ENTREPRISE",
+      "price": "Prix personnalisé",
+      "features": [
+        "Gestion multi-sites",
+        "Analytique avancée",
+        "Rapports personnalisés",
+        "Intégration API",
+        "Support dédié"
+      ]
+    }
+  },
+  "Footer": {
+    "copyright": "© 2026 RateVoice",
+    "trademark": "Marque déposée de Kingdom AI",
+    "rights": "Tous droits réservés."
+  }
+}

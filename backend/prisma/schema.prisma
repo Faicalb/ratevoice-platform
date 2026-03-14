@@ -1,0 +1,1520 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// -----------------------------------------------------------------------------
+// CORE & AUTHENTICATION
+// -----------------------------------------------------------------------------
+
+model User {
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  passwordHash       String?
+  fullName           String?
+  avatarUrl          String?
+  phoneNumber        String?
+  isVerified         Boolean   @default(false)
+  isAdmin            Boolean   @default(false)
+  currentPoints      Int       @default(0)
+  isActive           Boolean   @default(true)
+  mustChangePassword Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+
+  // Relations
+  roles              UserRole[]
+  businesses         Business[]                @relation("OwnerBusiness")
+  reviews            VoiceReview[]
+  textReviews        TextReview[]
+  bookings           Booking[]
+  wallet             Wallet?
+  conversations      ConversationParticipant[]
+  messages           Message[]
+  notifications      Notification[]
+  preferences        NotificationPreference?
+  ambassadorProfile  Ambassador?
+  loginSessions      LoginSession[]
+  auditLogs          AuditLog[]
+  securityEvents     SecurityEvent[]
+  apiKeys            APIKey[]
+  storyReactions     StoryReaction[]
+  liveStreamViewers  LiveStreamViewer[]
+  deviceFingerprints DeviceFingerprint[]
+  businessEmployments BusinessEmployee[]
+  invitedEmployees   BusinessEmployee[]     @relation("EmployeeInviter")
+  createdEvents      Event[]                @relation("EventCreatedByAdmin")
+  createdNews        News[]                 @relation("NewsCreatedByAdmin")
+  securityAlerts     AdminSecurityAlert[]   @relation("AlertUser")
+  resolvedSecurityAlerts AdminSecurityAlert[] @relation("AlertResolvedByAdmin")
+
+  @@index([email])
+  @@index([phoneNumber])
+}
+
+model Role {
+  id          String  @id @default(uuid())
+  name        String  @unique // ADMIN, BUSINESS, USER, AMBASSADOR, ELITE
+  description String?
+
+  // Relations
+  users       UserRole[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          String  @id @default(uuid())
+  action      String  @unique // e.g., "create:business", "read:analytics"
+  description String?
+
+  // Relations
+  roles RolePermission[]
+}
+
+model UserRole {
+  id         String   @id @default(uuid())
+  userId     String
+  roleId     String
+  branchId   String?
+  assignedAt DateTime @default(now())
+
+  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role            @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  branch BusinessBranch? @relation(fields: [branchId], references: [id])
+
+  @@unique([userId, roleId, branchId])
+}
+
+model RolePermission {
+  id           String   @id @default(uuid())
+  roleId       String
+  permissionId String
+  assignedAt   DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+model LoginSession {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  isValid   Boolean  @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// -----------------------------------------------------------------------------
+// BUSINESS & LISTINGS
+// -----------------------------------------------------------------------------
+
+model Business {
+  id          String  @id @default(uuid())
+  ownerId     String
+  name        String
+  description String?
+  logoUrl     String?
+  website     String?
+  category    String?
+  status      String  @default("PENDING") // PENDING, ACTIVE, SUSPENDED, UNCLAIMED
+
+  // AI Email Finder
+  ownerEmailFound      Boolean @default(false)
+  discoveredEmail      String?
+  emailConfidenceScore Float?
+  emailSource          String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  owner User @relation("OwnerBusiness", fields: [ownerId], references: [id])
+
+  branches             BusinessBranch[]
+  verifications        BusinessVerification[]
+  adCampaigns          AdCampaign[]
+  competitors          Competitor[]
+  apiKeys              APIKey[]
+  externalIntegrations ExternalIntegration[]
+  translations         BusinessTranslation[]
+  images               BusinessImage[]
+  importedReviews      ImportedReview[]
+  stories              Story[]
+  seoHistory           SeoHistory[]
+
+  // SEO Fields
+  seoTitle        String?
+  seoDescription  String?
+  seoKeywords     String?
+  seoSlug         String?
+  seoScore        Int?
+  seoApproved     Boolean   @default(false)
+  seoLocked       Boolean   @default(false)
+  seoLastEditedBy String?
+  seoUpdatedAt    DateTime?
+  seoFlag         Boolean   @default(false)
+  seoSpamScore    Int       @default(0)
+
+  seoHealth           SeoHealth?
+  keywordRankings     KeywordRanking[]
+  backlinks           Backlink[]
+  seoAudits           SeoAudit[]
+  channelIntegrations ChannelIntegration[]
+  icalIntegrations    ICalIntegration[]
+  syncLogs            SyncLog[]
+  subscription        Subscription?
+  employees           BusinessEmployee[]
+  securityAlerts      AdminSecurityAlert[]
+  submittedEvents     Event[] @relation("EventCreatedByBusiness")
+  submittedNews       News[] @relation("NewsCreatedByBusiness")
+
+  @@index([ownerId])
+  @@index([category])
+}
+
+model ImportedReview {
+  id             String   @id @default(uuid())
+  businessId     String
+  sourcePlatform String // GOOGLE, TRIPADVISOR
+  externalId     String?  @unique // ID from the external platform to avoid duplicates
+  authorName     String
+  rating         Float
+  reviewText     String?
+  reviewDate     DateTime
+  language       String?
+
+  // AI Analysis
+  sentimentScore Float?
+  sentimentLabel String? // POSITIVE, NEGATIVE, NEUTRAL
+  topics         String[]
+  keywords       String[]
+  translatedText String?
+
+  createdAt DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([sourcePlatform])
+}
+
+model BusinessImage {
+  id         String   @id @default(uuid())
+  businessId String
+  url        String
+  caption    String?
+  isMain     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+}
+
+model BusinessBranch {
+  id          String   @id @default(uuid())
+  businessId  String
+  name        String
+  address     String?
+  city        String?
+  country     String?
+  latitude    Float?
+  longitude   Float?
+  phoneNumber String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  voiceReviews VoiceReview[]
+  textReviews  TextReview[]
+  bookings     Booking[]
+  liveStreams  LiveStream[]
+  staff        UserRole[] // Can be extended for branch-specific roles if needed
+
+  @@index([businessId])
+  @@index([city, country])
+}
+
+model BusinessVerification {
+  id              String    @id @default(uuid())
+  businessId      String
+  documentUrl     String
+  status          String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  verifiedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime  @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+// -----------------------------------------------------------------------------
+// REVIEWS & AI ANALYSIS
+// -----------------------------------------------------------------------------
+
+model VoiceReview {
+  id         String   @id @default(uuid())
+  userId     String
+  branchId   String
+  audioUrl   String
+  transcript String?
+  rating     Int
+  sentiment  String? // POSITIVE, NEUTRAL, NEGATIVE
+  status     String   @default("PUBLISHED")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user   User           @relation(fields: [userId], references: [id])
+  branch BusinessBranch @relation(fields: [branchId], references: [id])
+
+  replies    ReviewReply[]
+  aiAnalysis AIReviewAnalysis?
+
+  @@index([userId])
+  @@index([branchId])
+  @@index([createdAt])
+  @@index([status])
+}
+
+model TextReview {
+  id        String   @id @default(uuid())
+  userId    String
+  branchId  String
+  content   String
+  rating    Int
+  sentiment String?
+  status    String   @default("PUBLISHED")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User           @relation(fields: [userId], references: [id])
+  branch BusinessBranch @relation(fields: [branchId], references: [id])
+
+  replies    ReviewReply[]
+  aiAnalysis AIReviewAnalysis? // Reusing same AI analysis model or create separate
+
+  @@index([userId])
+  @@index([branchId])
+}
+
+model ReviewReply {
+  id            String   @id @default(uuid())
+  voiceReviewId String?
+  textReviewId  String?
+  responderId   String // Could be business owner or staff
+  content       String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  voiceReview VoiceReview? @relation(fields: [voiceReviewId], references: [id])
+  textReview  TextReview?  @relation(fields: [textReviewId], references: [id])
+}
+
+model AIReviewAnalysis {
+  id             String   @id @default(uuid())
+  voiceReviewId  String?  @unique
+  textReviewId   String?  @unique
+  sentimentScore Float
+  keywords       String[] // Stored as array
+  summary        String?
+  topics         String[]
+  createdAt      DateTime @default(now())
+
+  voiceReview VoiceReview? @relation(fields: [voiceReviewId], references: [id])
+  textReview  TextReview?  @relation(fields: [textReviewId], references: [id])
+}
+
+// -----------------------------------------------------------------------------
+// BOOKINGS & PAYMENTS
+// -----------------------------------------------------------------------------
+
+model Booking {
+  id          String    @id @default(uuid())
+  userId      String
+  branchId    String
+  bookingDate DateTime
+  checkIn     DateTime?
+  checkOut    DateTime?
+  status      String    @default("PENDING") // CONFIRMED, CANCELLED, COMPLETED
+  totalAmount Decimal
+  currency    String    @default("USD")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user   User           @relation(fields: [userId], references: [id])
+  branch BusinessBranch @relation(fields: [branchId], references: [id])
+
+  payment BookingPayment?
+
+  @@index([userId])
+  @@index([branchId])
+  @@index([bookingDate])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model BookingPayment {
+  id            String   @id @default(uuid())
+  bookingId     String   @unique
+  amount        Decimal
+  currency      String
+  paymentMethod String // STRIPE, PAYPAL, WALLET
+  transactionId String?
+  status        String   @default("PENDING") // SUCCESS, FAILED
+  createdAt     DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+}
+
+// -----------------------------------------------------------------------------
+// WALLET & LOYALTY
+// -----------------------------------------------------------------------------
+
+model Wallet {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  balance   Decimal  @default(0)
+  currency  String   @default("USD")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User                @relation(fields: [userId], references: [id])
+  transactions WalletTransaction[]
+}
+
+model WalletTransaction {
+  id              String    @id @default(uuid())
+  walletId        String
+  amount          Decimal
+  currency        String    @default("USD")
+  provider        String? // STRIPE, PAYPAL, CMI, BANK_TRANSFER, ADMIN
+  type            String // DEPOSIT, WITHDRAWAL, PAYMENT, REWARD
+  referenceId     String? // ID of related entity (booking, ad, etc.)
+  providerRefId   String? // Provider transaction/payment reference (PI/Order/CMI ref)
+  proofUrl        String? // Bank transfer proof URL (if applicable)
+  metadataJson    String?
+  status          String    @default("COMPLETED")
+  riskScore       Int       @default(0)
+  fraudFlag       Boolean   @default(false)
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  wallet Wallet @relation(fields: [walletId], references: [id])
+  securityAlerts AdminSecurityAlert[]
+
+  @@index([walletId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([provider])
+  @@index([providerRefId])
+}
+
+model PaymentSetting {
+  id        String   @id @default(uuid())
+  provider  String   @unique // STRIPE, PAYPAL, CMI, BANK_TRANSFER
+  enabled   Boolean  @default(false)
+  priority  Int      @default(100)
+  configJson String  // encrypted JSON (secrets included)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([enabled])
+  @@index([priority])
+}
+
+model AdminFinancialLog {
+  id            String   @id @default(uuid())
+  adminId       String
+  actionType    String // wallet_credit, wallet_debit, manual_adjustment, refund, bank_transfer_validation
+  targetUserId  String?
+  amount        Decimal?
+  currency      String?
+  reason        String?
+  transactionId String?
+  createdAt     DateTime @default(now())
+
+  @@index([adminId])
+  @@index([targetUserId])
+  @@index([transactionId])
+  @@index([createdAt])
+}
+
+// -----------------------------------------------------------------------------
+// SUBSCRIPTION & BILLING
+// -----------------------------------------------------------------------------
+
+enum SubscriptionInterval {
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PENDING
+  CANCELED
+  SUSPENDED
+}
+
+enum InvoiceStatus {
+  PAID
+  FAILED
+  PENDING
+}
+
+model Plan {
+  id           String               @id @default(uuid())
+  code         String               @unique
+  name         String
+  price        Decimal              @default(0)
+  currency     String               @default("USD")
+  interval     SubscriptionInterval @default(MONTHLY)
+  featuresJson String               @default("[]")
+  isActive     Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  subscriptions Subscription[]
+
+  @@index([isActive])
+}
+
+model Subscription {
+  id                 String             @id @default(uuid())
+  businessId          String
+  planId              String
+  status              SubscriptionStatus @default(PENDING)
+  currentPeriodStart  DateTime          @default(now())
+  currentPeriodEnd    DateTime?
+  cancelAtPeriodEnd   Boolean           @default(false)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  plan     Plan     @relation(fields: [planId], references: [id])
+  invoices BillingHistory[]
+
+  @@unique([businessId])
+  @@index([planId])
+  @@index([status])
+}
+
+model BillingHistory {
+  id             String        @id @default(uuid())
+  subscriptionId String
+  amount         Decimal       @default(0)
+  currency       String        @default("USD")
+  status         InvoiceStatus @default(PENDING)
+  invoiceUrl     String?
+  provider       String?
+  providerRefId  String?
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId, createdAt])
+  @@index([status])
+}
+
+model PointsLedger {
+  id        String   @id @default(uuid())
+  userId    String
+  points    Int
+  reason    String // REVIEW_REWARD, BOOKING_BONUS
+  createdAt DateTime @default(now())
+
+  // No direct relation to User for simplicity in massive ledger, but ideally linked
+
+  @@index([userId])
+}
+
+model PointsRule {
+  id       String  @id @default(uuid())
+  action   String  @unique // WRITE_REVIEW, BOOKING
+  points   Int
+  isActive Boolean @default(true)
+}
+
+// -----------------------------------------------------------------------------
+// BUSINESS EMPLOYEES & PERMISSIONS
+// -----------------------------------------------------------------------------
+
+enum EmployeeStatus {
+  ACTIVE
+  SUSPENDED
+  INVITED
+  REMOVED
+}
+
+model BusinessEmployee {
+  id         String         @id @default(uuid())
+  businessId String
+  userId     String
+  roleTitle  String?
+  status     EmployeeStatus @default(INVITED)
+  invitedBy  String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  inviter  User?    @relation("EmployeeInviter", fields: [invitedBy], references: [id])
+  permissions EmployeePermission[]
+
+  @@unique([businessId, userId])
+  @@index([businessId, status])
+}
+
+model EmployeePermission {
+  id          String   @id @default(uuid())
+  employeeId  String
+  key         String
+  enabled     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee BusinessEmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, key])
+  @@index([employeeId])
+}
+
+// -----------------------------------------------------------------------------
+// EVENTS & NEWS
+// -----------------------------------------------------------------------------
+
+enum ContentStatus {
+  PUBLISHED
+  DRAFT
+  ARCHIVED
+}
+
+model Event {
+  id          String       @id @default(uuid())
+  title       String
+  description String
+  city        String?
+  country     String?
+  category    String?
+  imageUrl    String?
+  source      String?
+  eventDate   DateTime?
+  status      ContentStatus @default(PUBLISHED)
+  createdByAdminId String?
+  createdByBusinessId String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  createdByAdmin User? @relation("EventCreatedByAdmin", fields: [createdByAdminId], references: [id])
+  createdByBusiness Business? @relation("EventCreatedByBusiness", fields: [createdByBusinessId], references: [id])
+
+  @@index([status, createdAt])
+  @@index([city, country])
+}
+
+model News {
+  id          String       @id @default(uuid())
+  title       String
+  description String
+  city        String?
+  country     String?
+  category    String?
+  imageUrl    String?
+  source      String?
+  status      ContentStatus @default(PUBLISHED)
+  createdByAdminId String?
+  createdByBusinessId String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  createdByAdmin User? @relation("NewsCreatedByAdmin", fields: [createdByAdminId], references: [id])
+  createdByBusiness Business? @relation("NewsCreatedByBusiness", fields: [createdByBusinessId], references: [id])
+
+  @@index([status, createdAt])
+  @@index([city, country])
+}
+
+// -----------------------------------------------------------------------------
+// ADMIN SECURITY ALERTS
+// -----------------------------------------------------------------------------
+
+enum AlertSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum AlertStatus {
+  NEW
+  INVESTIGATING
+  RESOLVED
+}
+
+model AdminSecurityAlert {
+  id          String        @id @default(uuid())
+  severity    AlertSeverity @default(MEDIUM)
+  type        String
+  description String
+  source      String?
+  status      AlertStatus   @default(NEW)
+  details     Json?
+  userId      String?
+  businessId  String?
+  walletTransactionId String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  resolvedByAdminId String?
+  resolvedAt  DateTime?
+
+  user      User?     @relation("AlertUser", fields: [userId], references: [id])
+  business  Business? @relation(fields: [businessId], references: [id])
+  walletTransaction WalletTransaction? @relation(fields: [walletTransactionId], references: [id])
+  resolvedByAdmin User? @relation("AlertResolvedByAdmin", fields: [resolvedByAdminId], references: [id])
+
+  @@index([status, createdAt])
+  @@index([severity])
+  @@index([userId])
+  @@index([businessId])
+}
+
+// -----------------------------------------------------------------------------
+// ADS & MARKETING
+// -----------------------------------------------------------------------------
+
+enum AdPlacement {
+  HOME_FEED
+  BUSINESS_PAGE
+  AMBASSADOR_PAGE
+  SEARCH_RESULTS
+  BOOKING_PAGE
+  REVIEW_SECTION
+}
+
+enum PricingModel {
+  CPC
+  CPM
+  TIME
+}
+
+enum AdStatus {
+  ACTIVE
+  PAUSED
+  EXPIRED
+  PENDING
+  DRAFT
+  REJECTED
+}
+
+model AdCampaign {
+  id         String   @id @default(uuid())
+  businessId String
+  name       String
+  budget     Decimal
+  startDate  DateTime
+  endDate    DateTime
+  status     String   @default("DRAFT") // ACTIVE, PAUSED, COMPLETED
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id])
+  ads      Ad[]
+}
+
+model Ad {
+  id          String  @id @default(uuid())
+  campaignId  String?
+  title       String
+  description String?
+  content     String? // Kept for backward compatibility
+  imageUrl    String?
+  targetUrl   String?
+
+  advertiserId   String
+  advertiserType String // BUSINESS, AMBASSADOR
+
+  placement    AdPlacement  @default(HOME_FEED)
+  pricingModel PricingModel @default(CPM)
+
+  targetCountry String?
+  targetCity    String?
+
+  budget      Decimal @default(0)
+  impressions Int     @default(0)
+  clicks      Int     @default(0)
+  revenue     Decimal @default(0)
+
+  status    AdStatus @default(PENDING)
+  startDate DateTime @default(now())
+  endDate   DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campaign  AdCampaign?   @relation(fields: [campaignId], references: [id])
+  adClicks  AdClick[]
+  analytics AdAnalytics[]
+}
+
+model AdClick {
+  id        String   @id @default(uuid())
+  adId      String
+  userId    String?
+  ipAddress String?
+  clickedAt DateTime @default(now())
+
+  ad Ad @relation(fields: [adId], references: [id])
+}
+
+model AdAnalytics {
+  id          String   @id @default(uuid())
+  adId        String
+  date        DateTime @default(now())
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  ctr         Float    @default(0)
+  revenue     Decimal  @default(0)
+  spend       Decimal  @default(0) // Kept for backward compatibility
+
+  ad Ad @relation(fields: [adId], references: [id])
+
+  @@unique([adId, date])
+}
+
+model SponsoredReview {
+  id         String   @id @default(uuid())
+  reviewId   String
+  businessId String
+  startDate  DateTime
+  endDate    DateTime
+  price      Decimal
+  status     String   @default("PENDING") // PENDING, ACTIVE, EXPIRED
+  createdAt  DateTime @default(now())
+}
+
+model AdsMarketplace {
+  id            String   @id @default(uuid())
+  title         String
+  city          String
+  userId        String
+  price         Decimal
+  promotionType String
+  status        String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt     DateTime @default(now())
+}
+
+// -----------------------------------------------------------------------------
+// STORIES & LIVE STREAMING
+// -----------------------------------------------------------------------------
+
+model Story {
+  id         String   @id @default(uuid())
+  businessId String
+  mediaUrl   String
+  type       String // IMAGE, VIDEO
+  duration   Int      @default(15)
+  views      Int      @default(0)
+  reports    Int      @default(0)
+  status     String   @default("pending") // pending, active, flagged, expired
+  aiScore    Float?
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+
+  business   Business          @relation(fields: [businessId], references: [id])
+  storyViews StoryView[]
+  reactions  StoryReaction[]
+  ads        StoryAdCampaign[]
+}
+
+model StoryAdCampaign {
+  id            String   @id @default(uuid())
+  businessId    String
+  storyId       String
+  budget        Float
+  spent         Float    @default(0)
+  views         Int      @default(0)
+  clicks        Int      @default(0)
+  targetCity    String?
+  targetCountry String?
+  status        String   @default("active")
+  createdAt     DateTime @default(now())
+  endAt         DateTime
+
+  story Story @relation(fields: [storyId], references: [id])
+}
+
+model StoryView {
+  id       String   @id @default(uuid())
+  storyId  String
+  viewerId String? // Nullable if anonymous
+  viewedAt DateTime @default(now())
+
+  story Story @relation(fields: [storyId], references: [id])
+}
+
+model StoryReaction {
+  id        String   @id @default(uuid())
+  storyId   String
+  userId    String
+  reaction  String // LIKE, LOVE, FIRE
+  createdAt DateTime @default(now())
+
+  story Story @relation(fields: [storyId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+}
+
+model LiveStream {
+  id        String    @id @default(uuid())
+  branchId  String
+  title     String
+  streamKey String?
+  status    String    @default("SCHEDULED") // LIVE, ENDED
+  startedAt DateTime?
+  endedAt   DateTime?
+  createdAt DateTime  @default(now())
+
+  branch  BusinessBranch     @relation(fields: [branchId], references: [id])
+  viewers LiveStreamViewer[]
+}
+
+model LiveStreamViewer {
+  id       String    @id @default(uuid())
+  streamId String
+  userId   String
+  joinedAt DateTime  @default(now())
+  leftAt   DateTime?
+
+  stream LiveStream @relation(fields: [streamId], references: [id])
+  user   User       @relation(fields: [userId], references: [id])
+}
+
+// -----------------------------------------------------------------------------
+// MESSAGING & NOTIFICATIONS
+// -----------------------------------------------------------------------------
+
+model Conversation {
+  id        String   @id @default(uuid())
+  type      String   @default("DIRECT") // DIRECT, GROUP, SUPPORT
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+}
+
+model ConversationParticipant {
+  id             String   @id @default(uuid())
+  conversationId String
+  userId         String
+  joinedAt       DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             String    @id @default(uuid())
+  conversationId String
+  senderId       String
+  content        String?
+  createdAt      DateTime  @default(now())
+  readAt         DateTime?
+
+  conversation Conversation        @relation(fields: [conversationId], references: [id])
+  sender       User                @relation(fields: [senderId], references: [id])
+  attachments  MessageAttachment[]
+
+  @@index([conversationId, createdAt])
+}
+
+model MessageAttachment {
+  id        String   @id @default(uuid())
+  messageId String
+  fileUrl   String
+  fileType  String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  body      String
+  type      String // SYSTEM, BOOKING, REVIEW
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead])
+}
+
+model NotificationPreference {
+  id     String  @id @default(uuid())
+  userId String  @unique
+  email  Boolean @default(true)
+  push   Boolean @default(true)
+  sms    Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+// -----------------------------------------------------------------------------
+// AMBASSADOR & ELITE
+// -----------------------------------------------------------------------------
+
+model Ambassador {
+  id             String   @id @default(uuid())
+  userId         String?  @unique
+  name           String?
+  email          String?
+  phone          String?
+  country        String?
+  city           String?
+  referralCode   String   @unique
+  commissionRate Float    @default(0.05)
+  balance        Float    @default(0)
+  level          String   @default("BRONZE") // BRONZE, SILVER, GOLD, PLATINUM
+  status         String   @default("ACTIVE")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User?                   @relation(fields: [userId], references: [id])
+  services     AmbassadorService[]
+  withdrawals  WithdrawalRequest[]
+  activityLogs AmbassadorActivityLog[]
+  riskProfile  AmbassadorRisk?
+  fraudEvents  FraudEvent[]
+}
+
+model WithdrawalRequest {
+  id           String    @id @default(uuid())
+  ambassadorId String
+  amount       Float
+  method       String
+  status       String    @default("PENDING") // PENDING, APPROVED, REJECTED, FROZEN
+  requestedAt  DateTime  @default(now())
+  processedAt  DateTime?
+  adminId      String?
+
+  ambassador Ambassador @relation(fields: [ambassadorId], references: [id])
+}
+
+model AmbassadorActivityLog {
+  id           String   @id @default(uuid())
+  ambassadorId String
+  action       String
+  details      String?
+  ipAddress    String?
+  deviceHash   String?
+  location     String?
+  createdAt    DateTime @default(now())
+
+  ambassador Ambassador @relation(fields: [ambassadorId], references: [id])
+}
+
+model AmbassadorRisk {
+  id           String   @id @default(uuid())
+  ambassadorId String   @unique
+  riskScore    Int      @default(0)
+  riskLevel    String   @default("SAFE") // SAFE, MEDIUM, HIGH, CRITICAL
+  reasons      String[] // Array of strings explaining risk factors
+  lastUpdated  DateTime @default(now())
+
+  ambassador Ambassador @relation(fields: [ambassadorId], references: [id])
+}
+
+model DeviceFingerprint {
+  id         String   @id @default(uuid())
+  userId     String
+  deviceHash String
+  ipAddress  String
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([deviceHash])
+  @@index([ipAddress])
+}
+
+model FraudEvent {
+  id           String    @id @default(uuid())
+  ambassadorId String
+  fraudType    String // EARNINGS_SPIKE, FAKE_SERVICE, WITHDRAWAL_FRAUD, REFERRAL_ABUSE, GEO_ANOMALY
+  description  String
+  severity     String // LOW, MEDIUM, HIGH, CRITICAL
+  detectedAt   DateTime  @default(now())
+  isResolved   Boolean   @default(false)
+  resolvedAt   DateTime?
+  resolvedBy   String?
+
+  ambassador Ambassador @relation(fields: [ambassadorId], references: [id])
+}
+
+model AmbassadorService {
+  id           String   @id @default(uuid())
+  ambassadorId String
+  name         String
+  description  String?
+  price        Decimal
+  createdAt    DateTime @default(now())
+
+  ambassador Ambassador     @relation(fields: [ambassadorId], references: [id])
+  orders     ServiceOrder[]
+}
+
+model ServiceOrder {
+  id        String   @id @default(uuid())
+  serviceId String
+  buyerId   String // Could link to User or Business
+  status    String   @default("PENDING")
+  amount    Decimal
+  createdAt DateTime @default(now())
+
+  service AmbassadorService @relation(fields: [serviceId], references: [id])
+}
+
+model EliteLevel {
+  id        String   @id @default(uuid())
+  name      String // SILVER, GOLD, PLATINUM
+  minPoints Int
+  benefits  String[]
+}
+
+// -----------------------------------------------------------------------------
+// AI INTELLIGENCE & MARKET
+// -----------------------------------------------------------------------------
+
+model AIInsight {
+  id         String   @id @default(uuid())
+  category   String // MARKET, REVENUE, CUSTOMER
+  content    String
+  confidence Float
+  createdAt  DateTime @default(now())
+}
+
+model AIMarketReport {
+  id        String   @id @default(uuid())
+  region    String
+  period    String
+  data      Json // Flexible data structure for report
+  createdAt DateTime @default(now())
+}
+
+model AIBookingForecast {
+  id             String   @id @default(uuid())
+  targetDate     DateTime
+  predictedCount Int
+  confidence     Float
+  createdAt      DateTime @default(now())
+}
+
+model Competitor {
+  id           String   @id @default(uuid())
+  businessId   String
+  name         String
+  website      String?
+  industry     String?
+  marketShare  Decimal?
+  rating       Decimal?
+  isVisible    Boolean  @default(true)
+  lastAnalysis DateTime?
+  trackedSince DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+}
+
+model SeoHealth {
+  id             String   @id @default(uuid())
+  businessId     String   @unique
+  indexed        Boolean  @default(false)
+  metaErrors     String[]
+  missingSchema  Boolean  @default(false)
+  duplicateTitle Boolean  @default(false)
+  lastScan       DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+}
+
+model MarketSignal {
+  id          String   @id @default(uuid())
+  source      String // NEWS, SOCIAL, COMPETITOR
+  signalType  String // TREND, EVENT
+  description String
+  impactScore Float
+  detectedAt  DateTime @default(now())
+}
+
+// -----------------------------------------------------------------------------
+// SYSTEM & CONFIG
+// -----------------------------------------------------------------------------
+
+model SEOPage {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  title       String
+  description String?
+  keywords    String[]
+  content     String?
+  updatedAt   DateTime @updatedAt
+}
+
+model SeoHistory {
+  id         String   @id @default(uuid())
+  businessId String
+  action     String // UPDATE, APPROVE, REJECT, LOCK, UNLOCK
+  oldValue   Json?
+  newValue   Json?
+  editedBy   String?
+  createdAt  DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+}
+
+model APIKey {
+  id         String    @id @default(uuid())
+  userId     String?
+  businessId String?
+  key        String    @unique
+  scopes     String[]
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime?
+
+  user     User?     @relation(fields: [userId], references: [id])
+  business Business? @relation(fields: [businessId], references: [id])
+}
+
+model ExternalIntegration {
+  id         String   @id @default(uuid())
+  businessId String
+  provider   String // GOOGLE, FACEBOOK, STRIPE
+  apiKey     String?
+  config     Json?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+}
+
+model ChannelIntegration {
+  id                   String    @id @default(uuid())
+  businessId           String
+  name                 String // Booking.com, Airbnb
+  type                 String // OTA, PMS
+  status               String // CONNECTED, SYNCING, ERROR, DISCONNECTED
+  lastSync             DateTime?
+  config               Json? // Credentials, mapping
+  importedReservations Int       @default(0)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+}
+
+model ICalIntegration {
+  id          String    @id @default(uuid())
+  businessId  String
+  name        String
+  url         String
+  frequency   String    @default("1hour")
+  status      String // ACTIVE, ERROR, PAUSED
+  lastSync    DateTime?
+  totalEvents Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+}
+
+model SyncLog {
+  id            String   @id @default(uuid())
+  businessId    String
+  integrationId String? // Optional link to Channel or ICal
+  platform      String
+  status        String // SUCCESS, FAILED, WARNING
+  imported      Int      @default(0)
+  errors        Int      @default(0)
+  latency       Int      @default(0)
+  timestamp     DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId, timestamp])
+}
+
+model TrafficLog {
+  id         String   @id @default(uuid())
+  path       String
+  method     String
+  statusCode Int
+  ipAddress  String?
+  userAgent  String?
+  timestamp  DateTime @default(now())
+
+  @@index([timestamp])
+}
+
+model UsageStatistic {
+  id         String   @id @default(uuid())
+  metric     String // API_CALLS, STORAGE
+  value      Float
+  recordedAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  action    String
+  resource  String
+  details   Json?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model SecurityEvent {
+  id        String   @id @default(uuid())
+  userId    String?
+  eventType String // FAILED_LOGIN, SUSPICIOUS_ACTIVITY
+  ipAddress String?
+  details   String?
+  severity  String // LOW, MEDIUM, HIGH, CRITICAL
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+}
+
+model FeatureFlag {
+  id                String  @id @default(uuid())
+  key               String  @unique
+  isEnabled         Boolean @default(false)
+  description       String?
+  rolloutPercentage Int     @default(0)
+}
+
+model SystemSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  type      String // STRING, BOOLEAN, NUMBER, JSON
+  updatedAt DateTime @updatedAt
+}
+
+// -----------------------------------------------------------------------------
+// LOCALIZATION
+// -----------------------------------------------------------------------------
+
+model Language {
+  id       String  @id @default(uuid())
+  code     String  @unique // en, ar, fr, etc.
+  name     String
+  isRTL    Boolean @default(false)
+  isActive Boolean @default(true)
+}
+
+model BusinessTranslation {
+  id           String  @id @default(uuid())
+  businessId   String
+  languageCode String
+  name         String?
+  description  String?
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@unique([businessId, languageCode])
+}
+
+model AppTranslation {
+  id           String @id @default(uuid())
+  key          String
+  languageCode String
+  value        String
+
+  @@unique([key, languageCode])
+}
+
+model AIResponseTranslation {
+  id             String   @id @default(uuid())
+  originalText   String
+  translatedText String
+  sourceLang     String
+  targetLang     String
+  createdAt      DateTime @default(now())
+}
+
+// -----------------------------------------------------------------------------
+// API GATEWAY & PROVIDERS
+// -----------------------------------------------------------------------------
+
+model ExternalProvider {
+  id           String   @id @default(uuid())
+  serviceName  String // AI, SMS, EMAIL, MAPS, SPEECH_TO_TEXT, PAYMENTS, TRANSLATION
+  providerName String // Gemini, OpenAI, Claude, Twilio, SendGrid
+  apiKey       String // Encrypted
+  apiSecret    String? // Encrypted, Optional
+  endpoint     String?
+  priority     Int      @default(1)
+  rateLimit    Int      @default(60) // Requests per minute
+  status       String   @default("ACTIVE") // ACTIVE, INACTIVE, ERROR
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  usage              ProviderUsage[]
+  metrics            ApiMetric[]
+  fallbackProvider   ExternalProvider?  @relation("ProviderFallback", fields: [fallbackProviderId], references: [id])
+  fallbackProviderId String?
+  fallbackFor        ExternalProvider[] @relation("ProviderFallback")
+
+  // Health & Metrics
+  healthStatus    String    @default("HEALTHY") // HEALTHY, DEGRADED, FAILING
+  lastHealthCheck DateTime?
+  currentLatency  Float     @default(0) // ms (real-time)
+  failureCount    Int       @default(0)
+  costPerUnit     Float     @default(0) // Cost per 1k tokens or request
+}
+
+model ProviderUsage {
+  id           String    @id @default(uuid())
+  providerId   String
+  serviceName  String
+  requestCount Int       @default(0)
+  errorCount   Int       @default(0)
+  avgLatency   Float     @default(0) // ms
+  periodStart  DateTime  @default(now()) // For time-series aggregation (hourly/daily)
+  periodEnd    DateTime?
+
+  provider ExternalProvider @relation(fields: [providerId], references: [id])
+
+  @@index([providerId, periodStart])
+}
+
+model ApiMetric {
+  id         String   @id @default(uuid())
+  providerId String
+  timestamp  DateTime @default(now())
+  latency    Float
+  success    Boolean
+  statusCode Int?
+
+  provider ExternalProvider @relation(fields: [providerId], references: [id])
+
+  @@index([providerId, timestamp])
+}
+
+// -----------------------------------------------------------------------------
+// SEO INTELLIGENCE
+// -----------------------------------------------------------------------------
+
+model KeywordRanking {
+  id           String   @id @default(uuid())
+  businessId   String
+  keyword      String
+  position     Int
+  searchEngine String   @default("google") // google, bing
+  change       Int      @default(0) // position change
+  url          String?
+  volume       Int      @default(0)
+  difficulty   Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+}
+
+model Backlink {
+  id             String   @id @default(uuid())
+  businessId     String
+  url            String
+  authorityScore Int
+  anchorText     String?
+  targetUrl      String?
+  isDoFollow     Boolean  @default(true)
+  firstSeen      DateTime @default(now())
+  lastSeen       DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+}
+
+model SeoAudit {
+  id              String   @id @default(uuid())
+  businessId      String
+  score           Int      @default(0)
+  missingMeta     Boolean  @default(false)
+  missingSchema   Boolean  @default(false)
+  brokenCanonical Boolean  @default(false)
+  duplicateTitle  Boolean  @default(false)
+  loadSpeed       Float? // seconds
+  mobileFriendly  Boolean  @default(true)
+  issues          Json? // Detailed list of issues
+  crawledAt       DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+}
+
+model GlobalSeoSettings {
+  id                 String   @id @default(uuid())
+  defaultTitle       String   @default("RateVoice - Review Platform")
+  defaultDescription String   @default("Best reviews for hotels and restaurants.")
+  globalKeywords     String   @default("reviews, hotels, restaurants")
+  canonicalDomain    String   @default("https://ratevoice.com")
+  robotsTxt          String   @default("User-agent: *\nAllow: /")
+  updatedAt          DateTime @updatedAt
+}
+
+model SeoLandingPage {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  title       String
+  description String
+  keywords    String
+  city        String?
+  category    String?
+  content     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SeoKeyword {
+  id         String   @id @default(uuid())
+  keyword    String   @unique
+  volume     Int      @default(0)
+  difficulty Int      @default(0)
+  category   String?
+  updatedAt  DateTime @updatedAt
+}

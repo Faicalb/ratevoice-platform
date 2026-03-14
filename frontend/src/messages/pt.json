@@ -1,0 +1,85 @@
+{
+  "Dashboard": {
+    "title": "RateVoice",
+    "sidebar": {
+      "dashboard": "Dashboard",
+      "analytics": "Analytics",
+      "reviews": "Voice Reviews",
+      "bookings": "Bookings",
+      "wallet": "Wallet",
+      "customers": "Customers",
+      "messages": "Messages",
+      "advertising": "Advertising",
+      "aiInsights": "AI Insights",
+      "settings": "Settings"
+    },
+    "header": {
+      "search": "Search...",
+      "notifications": "Notifications",
+      "profile": "Profile"
+    },
+    "widgets": {
+      "totalReviews": "Total Reviews",
+      "customerSatisfaction": "Customer Satisfaction",
+      "bookings": "Bookings",
+      "revenue": "Revenue"
+    },
+    "aiInsights": {
+      "title": "AI Insights",
+      "example": "Guests are generally happy but many mention long wait times at check-in. Consider improving front desk efficiency.",
+      "suggestions": {
+        "speedUpCheckIn": "Speed up check-in process",
+        "enhanceStaffTraining": "Enhance staff training",
+        "offerWelcomeDrinks": "Offer welcome drinks"
+      }
+    },
+    "voiceReviews": {
+      "title": "Voice Reviews",
+      "vip": "VIP",
+      "regular": "Regular",
+      "newGuest": "New Guest",
+      "reply": "Reply"
+    },
+    "globalAnalytics": {
+      "title": "Global Analytics Map"
+    }
+  },
+  "Pricing": {
+    "free": {
+      "name": "FREE PLAN",
+      "price": "$0 / month",
+      "features": [
+        "Listen to 3 voice reviews",
+        "Basic analytics",
+        "Limited dashboard access"
+      ]
+    },
+    "professional": {
+      "name": "PROFESSIONAL PLAN",
+      "price": "$29 / month",
+      "features": [
+        "Unlimited voice reviews",
+        "Reply to customers",
+        "AI sentiment analysis",
+        "Booking management",
+        "Reports export"
+      ]
+    },
+    "enterprise": {
+      "name": "ENTERPRISE PLAN",
+      "price": "Custom pricing",
+      "features": [
+        "Multi-location management",
+        "Advanced analytics",
+        "Custom reports",
+        "API integration",
+        "Dedicated support"
+      ]
+    }
+  },
+  "Footer": {
+    "copyright": "© 2026 RateVoice",
+    "trademark": "Registered trademark of Kingdom AI",
+    "rights": "All rights reserved."
+  }
+}

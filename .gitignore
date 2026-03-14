@@ -1,0 +1,17 @@
+node_modules
+.next
+dist
+build
+coverage
+.env
+.env.local
+.env.production
+.env.development
+.cache
+logs
+*.log
+tmp
+.DS_Store
+.vscode
+.idea
+
